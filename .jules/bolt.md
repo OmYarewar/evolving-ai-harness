@@ -1,0 +1,3 @@
+## 2024-05-24 - Unnecessary API Client Recreation Anti-Pattern
+**Learning:** Recreating the `AsyncOpenAI` client on every request (which was done to easily handle potential configuration changes) implicitly destroys the underlying `httpx` HTTP connection pool. This forces a new DNS lookup, TCP connection, and TLS handshake on every single chat invocation, adding huge latency (around ~375ms vs ~3ms in our mock benchmark).
+**Action:** When an API client configuration might change dynamically, implement an explicit caching/memoization layer that tracks the configuration state and only recreates the client when the configuration *actually* changes. Never instantiate high-level HTTP-based clients unconditionally inside hot paths.
