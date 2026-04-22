@@ -6,13 +6,20 @@ from .tools import TOOLS_SCHEMA, execute_tool_call
 
 class Agent:
     def __init__(self):
+        self._last_api_key = None
+        self._last_base_url = None
+        self.client = None
         self._init_client()
 
     def _init_client(self):
-        self.client = AsyncOpenAI(
-            api_key=config.api_key or "dummy-key",
-            base_url=config.base_url
-        )
+        # Only reinitialize if configuration has changed to preserve HTTP connection pool
+        if self._last_api_key != config.api_key or self._last_base_url != config.base_url or self.client is None:
+            self.client = AsyncOpenAI(
+                api_key=config.api_key or "dummy-key",
+                base_url=config.base_url
+            )
+            self._last_api_key = config.api_key
+            self._last_base_url = config.base_url
 
     async def chat(self, session_id: str, user_message: str):
         # Refresh client in case config changed
