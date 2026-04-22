@@ -11,6 +11,18 @@ const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
 const btnNewChat = document.getElementById('btn-new-chat');
 
+// Throttled scroll to bottom
+let scrollTicking = false;
+function scrollToBottom() {
+    if (!scrollTicking) {
+        window.requestAnimationFrame(() => {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            scrollTicking = false;
+        });
+        scrollTicking = true;
+    }
+}
+
 // Settings Elements
 const settingsModal = document.getElementById('settings-modal');
 const btnSettings = document.getElementById('btn-settings');
@@ -113,7 +125,7 @@ chatForm.addEventListener('submit', async (e) => {
                             msgEl.appendChild(toolContent);
                         }
 
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        scrollToBottom();
 
                     } catch(e) {
                         console.error('Error parsing JSON from stream:', e, dataStr);
@@ -170,7 +182,7 @@ function appendMessage(role, content, id = null) {
     
     chatMessages.appendChild(wrapper);
     lucide.createIcons();
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    scrollToBottom();
 }
 
 btnNewChat.addEventListener('click', () => {
