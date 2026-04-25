@@ -181,7 +181,8 @@ function appendMessage(role, content, id = null) {
     }
     
     chatMessages.appendChild(wrapper);
-    lucide.createIcons();
+    // Optimize performance: Only scan the new wrapper for icons instead of the whole document (prevents O(N^2) lag)
+    lucide.createIcons({ root: wrapper });
     scrollToBottom();
 }
 
@@ -195,7 +196,8 @@ btnNewChat.addEventListener('click', () => {
             </div>
         </div>
     `;
-    lucide.createIcons();
+    // Optimize performance: Only scan the chatMessages container for icons instead of the whole document
+    lucide.createIcons({ root: chatMessages });
 });
 
 // Settings Logic
