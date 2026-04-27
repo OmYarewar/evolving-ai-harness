@@ -1,0 +1,29 @@
+/app/backend/main.py:28: DeprecationWarning:
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+  @app.on_event("startup")
+INFO:     Started server process [335619]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+chrome-devtools-mcp exposes content of the browser instance to the MCP clients allowing them to inspect,
+debug, and modify any data in the browser or DevTools.
+Avoid sharing sensitive or personal information that you do not want to share with MCP clients.
+Performance tools may send trace URLs to the Google CrUX API to fetch real-user experience data. To disable, run with --no-performance-crux.
+
+Google collects usage statistics to improve Chrome DevTools MCP. To opt-out, run with --no-usage-statistics.
+For more details, visit: https://github.com/ChromeDevTools/chrome-devtools-mcp#usage-statistics
+Reloading MCP config...
+Connected to MCP server chrome-devtools
+INFO:     127.0.0.1:40578 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40578 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40584 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40584 - "GET /api/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40584 - "POST /api/chat HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [335619]

@@ -96,25 +96,24 @@ def evaluate_harness(test_command: str) -> str:
         return f"Error executing harness evaluation: {e}"
 
 def heal_system() -> str:
-    """Scans for and terminates runaway processes that might be resource hogs."""
+    """Scans for and terminates runaway child processes that might be resource hogs."""
     try:
         terminated_processes = []
-        # Find processes taking high CPU
-        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
+        current_process = psutil.Process()
+        children = current_process.children(recursive=True)
+
+        # Find child processes taking high CPU
+        for proc in children:
             try:
-                # Get cpu percent - this requires a small delay so we pass interval=None,
-                # but we've already imported psutil. It might not be perfectly accurate
-                # on first pass without interval, but good enough for a basic check.
-                if proc.info['cpu_percent'] is not None and proc.info['cpu_percent'] > 90.0:
-                    # Don't kill our own process
-                    if proc.info['pid'] != os.getpid():
-                        proc.terminate()
-                        terminated_processes.append(f"Terminated PID: {proc.info['pid']} (Name: {proc.info['name']}, CPU: {proc.info['cpu_percent']}%)")
+                cpu_percent = proc.cpu_percent(interval=0.1)
+                if cpu_percent > 90.0:
+                    proc.terminate()
+                    terminated_processes.append(f"Terminated PID: {proc.pid} (Name: {proc.name()}, CPU: {cpu_percent}%)")
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
 
         if not terminated_processes:
-            return "System heal complete. No runaway processes found."
+            return "System heal complete. No runaway child processes found."
         else:
             return "System heal complete. Terminated the following processes:\n" + "\n".join(terminated_processes)
     except Exception as e:
@@ -160,6 +159,10 @@ def install_skill(zip_filepath: str) -> str:
             return f"Error: Skill zip file not found at {path}"
 
         with zipfile.ZipFile(path, 'r') as zip_ref:
+            for member in zip_ref.namelist():
+                member_path = os.path.abspath(os.path.join(skills_dir, member))
+                if not member_path.startswith(os.path.abspath(skills_dir) + os.sep):
+                    return f"Error: Zip file contains paths that resolve outside the target directory: {member}"
             zip_ref.extractall(skills_dir)
 
         return f"Successfully extracted {path} to {skills_dir}."
