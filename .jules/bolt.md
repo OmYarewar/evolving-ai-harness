@@ -5,3 +5,7 @@
 ## 2026-04-25 - DOM Scanning Lag with Lucide Icons
 **Learning:** Calling `lucide.createIcons()` globally inside frequent update functions (like appending chat messages) creates an O(N²) performance bottleneck, as the library scans the entire document for `data-lucide` attributes on every single invocation. This causes noticeable lag as the chat history grows.
 **Action:** When injecting new HTML elements that contain Lucide icons, always use the `{ root: targetElement }` configuration option to scope the scan strictly to the newly added elements, maintaining O(1) performance relative to the total document size.
+
+## 2026-04-26 - O(N) Serialization Bottleneck in Monolithic JSON Files
+**Learning:** Saving the entire state of an application to a single `memory.json` file on every chat message creates an O(N) performance bottleneck. As the total size of all chat sessions combined grows, updating the JSON file introduces massive I/O and JSON serialization overhead, causing a noticeable UI lag during streaming and messaging on larger datasets (e.g., from <1ms per operation to ~100ms when handling 200 sessions).
+**Action:** Transition away from monolithic state files when dealing with collections of discrete datasets. Instead, adopt a file-per-record storage model (e.g., `data/sessions/<session_id>.json`) where appending new data only triggers serialization and I/O for the specific affected record, resolving the bottleneck and retaining an O(1) performance profile.
