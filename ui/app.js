@@ -212,17 +212,19 @@ btnNewChat.addEventListener('click', () => {
 
 // Settings Logic
 btnSettings.addEventListener('click', async () => {
-    // Fetch current config
     const res = await fetch('/api/config');
     const config = await res.json();
     
-    inputBaseUrl.value = config.base_url;
-    inputApiKey.value = config.api_key;
-    inputModel.value = config.model;
-    inputSystemPrompt.value = config.system_prompt;
+    document.getElementById('config-base-url').value = config.base_url;
+    document.getElementById('config-api-key').value = config.api_key;
+    document.getElementById('config-model').value = config.model;
+    document.getElementById('config-system-prompt').value = config.system_prompt;
+    document.getElementById('config-workspace-dir').value = config.workspace_dir;
+    document.getElementById('config-mcp-str').value = config.mcp_config_str;
+    document.getElementById('config-skills-str').value = config.skills_config_str;
     
-    settingsModal.classList.remove('hidden');
-    settingsModal.classList.add('flex');
+    document.getElementById('settings-modal').classList.remove('hidden');
+    document.getElementById('settings-modal').classList.add('flex');
 });
 
 btnCloseSettings.addEventListener('click', () => {
@@ -231,21 +233,25 @@ btnCloseSettings.addEventListener('click', () => {
 });
 
 btnSaveSettings.addEventListener('click', async () => {
+    const btnSaveSettings = document.getElementById('btn-save-settings');
     btnSaveSettings.textContent = 'Saving...';
     await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            base_url: inputBaseUrl.value,
-            api_key: inputApiKey.value,
-            model: inputModel.value,
-            system_prompt: inputSystemPrompt.value
+            base_url: document.getElementById('config-base-url').value,
+            api_key: document.getElementById('config-api-key').value,
+            model: document.getElementById('config-model').value,
+            system_prompt: document.getElementById('config-system-prompt').value,
+            workspace_dir: document.getElementById('config-workspace-dir').value,
+            mcp_config_str: document.getElementById('config-mcp-str').value,
+            skills_config_str: document.getElementById('config-skills-str').value
         })
     });
     btnSaveSettings.textContent = 'Saved!';
     setTimeout(() => {
         btnSaveSettings.textContent = 'Save Configurations';
-        btnCloseSettings.click();
+        document.getElementById('btn-close-settings').click();
     }, 1000);
 });
 
@@ -351,3 +357,76 @@ btnNewChat.addEventListener('click', () => {
 
 // Load sessions on startup
 loadSessions();
+
+
+// New UI Elements
+const btnSudo = document.getElementById('btn-sudo');
+const sudoModal = document.getElementById('sudo-modal');
+const btnCloseSudo = document.getElementById('btn-close-sudo');
+const btnSaveSudo = document.getElementById('btn-save-sudo');
+const inputSudoPassword = document.getElementById('input-sudo-password');
+
+const inputWorkspaceDir = document.getElementById('config-workspace-dir');
+const inputMcpStr = document.getElementById('config-mcp-str');
+const inputSkillsStr = document.getElementById('config-skills-str');
+const settingsTabBtns = document.querySelectorAll('.settings-tab-btn');
+const settingsTabs = document.querySelectorAll('.settings-tab');
+
+// Tab Switching Logic
+settingsTabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        // Remove active styling from all buttons
+        settingsTabBtns.forEach(b => {
+            b.classList.remove('bg-indigo-600', 'text-white');
+            b.classList.add('hover:bg-slate-700', 'text-slate-400');
+        });
+        // Add active styling to clicked button
+        btn.classList.add('bg-indigo-600', 'text-white');
+        btn.classList.remove('hover:bg-slate-700', 'text-slate-400');
+
+        // Hide all tabs
+        settingsTabs.forEach(tab => tab.classList.add('hidden'));
+        settingsTabs.forEach(tab => tab.classList.remove('block'));
+
+        // Show target tab
+        const targetId = btn.getAttribute('data-target');
+        const targetTab = document.getElementById(targetId);
+        if (targetTab) {
+            targetTab.classList.remove('hidden');
+            targetTab.classList.add('block');
+        }
+    });
+});
+
+// Sudo Modal Logic
+btnSudo.addEventListener('click', () => {
+    sudoModal.classList.remove('hidden');
+    sudoModal.classList.add('flex');
+});
+
+btnCloseSudo.addEventListener('click', () => {
+    sudoModal.classList.add('hidden');
+    sudoModal.classList.remove('flex');
+});
+
+btnSaveSudo.addEventListener('click', async () => {
+    btnSaveSudo.textContent = 'Saving...';
+    await fetch('/api/sudo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            sudo_password: inputSudoPassword.value
+        })
+    });
+    btnSaveSudo.textContent = 'Granted!';
+    // Optional: Visual feedback on the header button
+    btnSudo.classList.remove('bg-red-600/20', 'text-red-400');
+    btnSudo.classList.add('bg-green-600/20', 'text-green-400');
+    btnSudo.innerHTML = '<i data-lucide="shield-check"></i> Rooted';
+    lucide.createIcons({ root: btnSudo });
+
+    setTimeout(() => {
+        btnSaveSudo.textContent = 'Grant Sudo Access';
+        btnCloseSudo.click();
+    }, 1000);
+});

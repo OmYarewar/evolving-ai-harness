@@ -2,7 +2,8 @@ from openai import AsyncOpenAI
 import json
 from .config import config
 from .memory import memory, Message
-from .tools import TOOLS_SCHEMA, execute_tool_call
+from .tools import TOOLS_SCHEMA, execute_tool_call, AVAILABLE_TOOLS
+from .mcp_manager import mcp_manager
 
 class Agent:
     def __init__(self):
@@ -33,12 +34,16 @@ class Agent:
             messages = [{"role": "system", "content": config.system_prompt}]
             messages.extend(memory.get_history(session_id))
 
+            # Combine static tools and MCP dynamic tools
+            current_tools_schema = TOOLS_SCHEMA.copy()
+            current_tools_schema.extend(mcp_manager.get_tool_schemas())
+
             try:
                 # Call LLM
                 response = await self.client.chat.completions.create(
                     model=config.model,
                     messages=messages,
-                    tools=TOOLS_SCHEMA,
+                    tools=current_tools_schema,
                     tool_choice="auto"
                 )
             except Exception as e:
@@ -74,18 +79,28 @@ class Agent:
             # Handle tool calls
             if response_message.tool_calls:
                 for tool_call in response_message.tool_calls:
-                    tool_result = execute_tool_call({
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments
-                        }
-                    })
+                    func_name = tool_call.function.name
+                    arguments_str = tool_call.function.arguments
+
+                    if func_name in AVAILABLE_TOOLS:
+                        tool_result = execute_tool_call({
+                            "function": {
+                                "name": func_name,
+                                "arguments": arguments_str
+                            }
+                        })
+                    else:
+                        try:
+                            args = json.loads(arguments_str)
+                            tool_result = await mcp_manager.call_tool(func_name, args)
+                        except Exception as e:
+                            tool_result = f"Error evaluating MCP tool {func_name}: {e}"
                     
                     tool_msg = Message(
                         role="tool",
-                        content=tool_result,
+                        content=str(tool_result),
                         tool_call_id=tool_call.id,
-                        name=tool_call.function.name
+                        name=func_name
                     )
                     memory.add_message(session_id, tool_msg)
                     yield tool_msg.model_dump(exclude_none=True)

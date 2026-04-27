@@ -3,11 +3,17 @@ import json
 import subprocess
 import os
 import sys
+import urllib.request
+from bs4 import BeautifulSoup
+from .config import config
 
 def read_file(filepath: str) -> str:
     """Reads the content of a file."""
     try:
-        with open(filepath, 'r') as f:
+        path = filepath
+        if not os.path.isabs(path):
+             path = os.path.join(config.workspace_dir, path)
+        with open(path, 'r') as f:
             return f.read()
     except Exception as e:
         return f"Error reading file: {e}"
@@ -15,17 +21,25 @@ def read_file(filepath: str) -> str:
 def write_file(filepath: str, content: str) -> str:
     """Writes content to a file."""
     try:
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, 'w') as f:
+        path = filepath
+        if not os.path.isabs(path):
+             path = os.path.join(config.workspace_dir, path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
             f.write(content)
-        return f"File {filepath} written successfully."
+        return f"File {path} written successfully."
     except Exception as e:
         return f"Error writing file: {e}"
 
 def execute_terminal_command(command: str) -> str:
     """Executes a command in the terminal and returns the output."""
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        cmd_to_run = command
+        # Auto-inject sudo password if required
+        if "sudo " in command and config.sudo_password:
+             cmd_to_run = command.replace("sudo ", f"echo '{config.sudo_password}' | sudo -S ") if "sudo " in command else command
+
+        result = subprocess.run(cmd_to_run, shell=True, capture_output=True, text=True, cwd=config.workspace_dir, timeout=60)
         return f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     except Exception as e:
         return f"Error executing command: {e}"
@@ -39,7 +53,12 @@ def restart_harness() -> str:
 def evaluate_harness(test_command: str) -> str:
     """Runs a harness test command and captures the output/trace for optimization."""
     try:
-        result = subprocess.run(test_command, shell=True, capture_output=True, text=True)
+        cmd_to_run = test_command
+        # Auto-inject sudo password if required
+        if "sudo " in test_command and config.sudo_password:
+             cmd_to_run = test_command.replace("sudo ", f"echo '{config.sudo_password}' | sudo -S ") if "sudo " in test_command else test_command
+
+        result = subprocess.run(cmd_to_run, shell=True, capture_output=True, text=True, cwd=config.workspace_dir, timeout=60)
         output = "--- Test Execution Trace ---\n"
         output += f"Command: {test_command}\n"
         output += f"Exit Code: {result.returncode}\n\n"
@@ -55,12 +74,39 @@ def evaluate_harness(test_command: str) -> str:
     except Exception as e:
         return f"Error executing harness evaluation: {e}"
 
+def get_recent_ai_papers() -> str:
+    """Scrapes recent AI papers from arxiv."""
+    try:
+        url = "https://arxiv.org/list/cs.AI/recent"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+             html = response.read()
+
+        soup = BeautifulSoup(html, 'html.parser')
+        papers = []
+        for dl in soup.find_all('dl'):
+             titles = dl.find_all('div', class_='list-title')
+             authors = dl.find_all('div', class_='list-authors')
+
+             for title, author in zip(titles, authors):
+                 paper_title = title.text.replace('Title:', '').strip()
+                 paper_author = author.text.replace('Authors:', '').replace('\n', '').strip()
+                 papers.append(f"Title: {paper_title}\nAuthors: {paper_author}")
+                 if len(papers) >= 10: # Limit to 10 recent
+                     break
+             if len(papers) >= 10:
+                 break
+        return "\n\n".join(papers)
+    except Exception as e:
+        return f"Error fetching papers: {e}"
+
 AVAILABLE_TOOLS = {
     "read_file": read_file,
     "write_file": write_file,
     "execute_terminal_command": execute_terminal_command,
     "restart_harness": restart_harness,
-    "evaluate_harness": evaluate_harness
+    "evaluate_harness": evaluate_harness,
+    "get_recent_ai_papers": get_recent_ai_papers
 }
 
 TOOLS_SCHEMA = [
@@ -131,6 +177,17 @@ TOOLS_SCHEMA = [
                 "required": ["test_command"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_recent_ai_papers",
+            "description": "Fetches a list of the most recent AI papers from arxiv.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            }
+        }
     }
 ]
 
@@ -149,4 +206,4 @@ def execute_tool_call(tool_call: Dict[str, Any]) -> str:
             return str(func(**arguments))
         except Exception as e:
             return f"Error executing tool {func_name}: {str(e)}"
-    return f"Error: Tool {func_name} not found."
+    return f"Error: Tool {func_name} not found locally."

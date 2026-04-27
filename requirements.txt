@@ -7,3 +7,5 @@ pywebview
 jinja2
 python-dotenv
 sqlmodel
+mcp
+beautifulsoup4

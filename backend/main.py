@@ -5,10 +5,12 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import os
 import json
+import asyncio
 
 from .config import config
 from .memory import memory
 from .agent import agent
+from .mcp_manager import mcp_manager
 
 app = FastAPI()
 
@@ -20,6 +22,11 @@ UI_DIR = os.path.join(BASE_DIR, "ui")
 app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 
 templates = Jinja2Templates(directory=UI_DIR)
+
+@app.on_event("startup")
+async def startup_event():
+    # Load default MCP configuration
+    asyncio.create_task(mcp_manager.reload_config(config.mcp_config_str))
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index(request: Request):
@@ -70,6 +77,9 @@ class ConfigUpdate(BaseModel):
     base_url: str
     model: str
     system_prompt: str
+    mcp_config_str: str
+    skills_config_str: str
+    workspace_dir: str
 
 @app.get("/api/config")
 async def get_config():
@@ -81,6 +91,22 @@ async def update_config(update: ConfigUpdate):
     config.base_url = update.base_url
     config.model = update.model
     config.system_prompt = update.system_prompt
+    config.workspace_dir = update.workspace_dir
+    config.skills_config_str = update.skills_config_str
+
+    if config.mcp_config_str != update.mcp_config_str:
+        config.mcp_config_str = update.mcp_config_str
+        # Start reload task in background
+        asyncio.create_task(mcp_manager.reload_config(config.mcp_config_str))
+
+    return {"status": "ok"}
+
+class SudoUpdate(BaseModel):
+    sudo_password: str
+
+@app.post("/api/sudo")
+async def update_sudo(update: SudoUpdate):
+    config.sudo_password = update.sudo_password
     return {"status": "ok"}
 
 if __name__ == "__main__":
