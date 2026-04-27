@@ -33,16 +33,34 @@ def execute_terminal_command(command: str) -> str:
 def restart_harness() -> str:
     """Restarts the harness application to apply changes."""
     print("Restarting harness...")
-    # This might need to be handled carefully depending on the launcher.
-    # For now, we will touch a file or send a signal to let the launcher restart.
     os.execv(sys.executable, ['python'] + sys.argv)
     return "Restarting..."
+
+def evaluate_harness(test_command: str) -> str:
+    """Runs a harness test command and captures the output/trace for optimization."""
+    try:
+        result = subprocess.run(test_command, shell=True, capture_output=True, text=True)
+        output = "--- Test Execution Trace ---\n"
+        output += f"Command: {test_command}\n"
+        output += f"Exit Code: {result.returncode}\n\n"
+        output += f"--- STDOUT ---\n{result.stdout}\n\n"
+        output += f"--- STDERR ---\n{result.stderr}\n\n"
+
+        import re
+        score_match = re.search(r"score:\s*([0-9.]+)", result.stdout, re.IGNORECASE)
+        if score_match:
+            output += f"Extracted Score: {score_match.group(1)}\n"
+
+        return output
+    except Exception as e:
+        return f"Error executing harness evaluation: {e}"
 
 AVAILABLE_TOOLS = {
     "read_file": read_file,
     "write_file": write_file,
     "execute_terminal_command": execute_terminal_command,
-    "restart_harness": restart_harness
+    "restart_harness": restart_harness,
+    "evaluate_harness": evaluate_harness
 }
 
 TOOLS_SCHEMA = [
@@ -79,7 +97,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "execute_terminal_command",
-            "description": "Executes a command in the terminal and returns the output. Use this to run tests, install packages, or list directories.",
+            "description": "Executes a command in the terminal and returns the output. Use this to run tests, install packages, or list directories. Gives you the power to do anything in the user's system.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -97,6 +115,20 @@ TOOLS_SCHEMA = [
             "parameters": {
                 "type": "object",
                 "properties": {},
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "evaluate_harness",
+            "description": "Runs a test command to evaluate the current harness and captures the execution trace, output, and score. This is essential for the Meta-Harness optimization process.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "test_command": {"type": "string", "description": "The shell command to run the tests and generate the trace."}
+                },
+                "required": ["test_command"]
             }
         }
     }

@@ -40,6 +40,27 @@ async def chat_endpoint(request: ChatRequest):
             yield f"data: {json.dumps(chunk)}\n\n"
     return StreamingResponse(generate(), media_type="text/event-stream")
 
+
+@app.get("/api/sessions")
+async def get_sessions():
+    sessions = []
+    for session_id, session in memory.sessions.items():
+        # Get preview from first user message, or default title
+        title = "New Session"
+        for msg in session.messages:
+            if msg.role == "user":
+                title = msg.content[:30] + ("..." if len(msg.content) > 30 else "")
+                break
+
+        sessions.append({
+            "id": session_id,
+            "title": title,
+            "message_count": len(session.messages)
+        })
+    # Sort descending by id assuming id has timestamp
+    sessions.sort(key=lambda x: x["id"], reverse=True)
+    return {"sessions": sessions}
+
 @app.get("/api/sessions/{session_id}")
 async def get_session(session_id: str):
     return {"history": memory.get_history(session_id)}

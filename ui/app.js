@@ -104,25 +104,35 @@ chatForm.addEventListener('submit', async (e) => {
                         if (data.role === 'assistant') {
                             if (data.content) {
                                 assistantContent = data.content; // Use exact latest content rather than appending chunks
-                                msgEl.innerHTML = marked.parse(assistantContent);
+                                msgEl.innerHTML = DOMPurify.sanitize(marked.parse(assistantContent));
                             }
                             if (data.tool_calls) {
-                                let toolHTML = '<div class="mt-2 space-y-1">';
+                                let toolHTML = '<details class="mt-2 bg-slate-800 rounded border border-slate-700 text-xs font-mono">';
+                                toolHTML += '<summary class="p-2 cursor-pointer hover:bg-slate-700 text-indigo-400 select-none">Executing Tools (' + data.tool_calls.length + ')</summary>';
+                                toolHTML += '<div class="p-2 border-t border-slate-700 space-y-1">';
                                 data.tool_calls.forEach(tc => {
-                                    toolHTML += `<div class="text-xs bg-slate-800 text-slate-300 p-2 rounded border border-slate-700 font-mono">
-                                        <span class="text-indigo-400">Executing:</span> ${tc.function.name}
-                                    </div>`;
+                                    toolHTML += `<div><span class="text-slate-500">${tc.function.name}</span></div>`;
                                 });
-                                toolHTML += '</div>';
-                                if(!msgEl.innerHTML.includes('Executing:')) {
-                                    msgEl.innerHTML += toolHTML;
+                                toolHTML += '</div></details>';
+                                if(!msgEl.innerHTML.includes('Executing Tools')) {
+                                    msgEl.innerHTML += DOMPurify.sanitize(toolHTML, {ADD_TAGS: ['details', 'summary']});
                                 }
                             }
                         } else if (data.role === 'tool') {
+                            const details = document.createElement('details');
+                            details.className = 'mt-2 bg-slate-900 rounded border border-slate-800 text-xs font-mono';
+
+                            const summary = document.createElement('summary');
+                            summary.className = 'p-2 cursor-pointer hover:bg-slate-800 text-slate-400 select-none';
+                            summary.textContent = 'Tool Output: ' + (data.name || 'Unknown');
+
                             const toolContent = document.createElement('div');
-                            toolContent.className = 'mt-2 text-xs bg-slate-900 text-slate-400 p-2 rounded border border-slate-800 overflow-x-auto font-mono max-h-48 overflow-y-auto';
+                            toolContent.className = 'p-2 border-t border-slate-800 text-slate-400 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap';
                             toolContent.textContent = data.content;
-                            msgEl.appendChild(toolContent);
+
+                            details.appendChild(summary);
+                            details.appendChild(toolContent);
+                            msgEl.appendChild(details);
                         }
 
                         scrollToBottom();
@@ -161,7 +171,7 @@ function appendMessage(role, content, id = null) {
         wrapper.innerHTML = `
             <div class="flex-1"></div>
             <div class="max-w-[80%] ${msgClass} p-4 shadow-sm">
-                <div class="prose prose-invert max-w-none text-sm">${marked.parse(content || ' ')}</div>
+                <div class="prose prose-invert max-w-none text-sm">${DOMPurify.sanitize(marked.parse(content || ' '))}</div>
             </div>
             <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center shrink-0">
                 <i data-lucide="user" class="w-4 h-4 text-white"></i>
@@ -174,7 +184,7 @@ function appendMessage(role, content, id = null) {
                 <i data-lucide="bot" class="w-4 h-4 text-slate-300"></i>
             </div>
             <div class="max-w-[80%] ${msgClass} p-4 shadow-sm w-full">
-                <div ${innerId} class="prose prose-invert max-w-none text-sm">${content ? marked.parse(content) : '<span class="animate-pulse flex items-center h-4"><span class="w-2 h-2 bg-slate-500 rounded-full mr-1"></span><span class="w-2 h-2 bg-slate-500 rounded-full mr-1"></span><span class="w-2 h-2 bg-slate-500 rounded-full"></span></span>'}</div>
+                <div ${innerId} class="prose prose-invert max-w-none text-sm">${content ? DOMPurify.sanitize(marked.parse(content)) : '<span class="animate-pulse flex items-center h-4"><span class="w-2 h-2 bg-slate-500 rounded-full mr-1"></span><span class="w-2 h-2 bg-slate-500 rounded-full mr-1"></span><span class="w-2 h-2 bg-slate-500 rounded-full"></span></span>'}</div>
             </div>
             <div class="flex-1"></div>
         `;
@@ -238,3 +248,106 @@ btnSaveSettings.addEventListener('click', async () => {
         btnCloseSettings.click();
     }, 1000);
 });
+
+
+// Session Management
+const sessionList = document.getElementById('session-list');
+
+async function loadSessions() {
+    try {
+        const res = await fetch('/api/sessions');
+        const data = await res.json();
+
+        sessionList.innerHTML = '';
+        data.sessions.forEach(session => {
+            const btn = document.createElement('button');
+            btn.className = `w-full text-left p-2 rounded hover:bg-slate-700 transition-colors truncate text-sm ${session.id === currentSessionId ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`;
+            btn.innerHTML = `<i data-lucide="message-square" class="w-4 h-4 inline-block mr-2 opacity-70"></i> ${session.title}`;
+            btn.onclick = () => loadSession(session.id);
+            sessionList.appendChild(btn);
+        });
+        lucide.createIcons({ root: sessionList });
+    } catch (e) {
+        console.error("Failed to load sessions:", e);
+    }
+}
+
+async function loadSession(sessionId) {
+    currentSessionId = sessionId;
+    chatMessages.innerHTML = ''; // Clear current messages
+
+    try {
+        const res = await fetch(`/api/sessions/${sessionId}`);
+        const data = await res.json();
+
+        if (data.history && data.history.length > 0) {
+            // Skip the system prompt which is typically first
+            const displayHistory = data.history.filter(msg => msg.role !== 'system');
+
+            displayHistory.forEach(msg => {
+                if (msg.role === 'user' || msg.role === 'assistant') {
+                    // For assistant messages with tool calls, we don't have the clean stream chunking,
+                    // so we append directly.
+                    appendMessage(msg.role, msg.content || '');
+
+                    if (msg.role === 'assistant' && msg.tool_calls) {
+                         // Find the last added assistant message to append tool details
+                         const lastMsgContent = chatMessages.lastElementChild.querySelector('.prose');
+                         if(lastMsgContent) {
+                             let toolHTML = '<details class="mt-2 bg-slate-800 rounded border border-slate-700 text-xs font-mono">';
+                             toolHTML += '<summary class="p-2 cursor-pointer hover:bg-slate-700 text-indigo-400 select-none">Executing Tools (' + msg.tool_calls.length + ')</summary>';
+                             toolHTML += '<div class="p-2 border-t border-slate-700 space-y-1">';
+                             msg.tool_calls.forEach(tc => {
+                                 toolHTML += `<div><span class="text-slate-500">${tc.function.name}</span></div>`;
+                             });
+                             toolHTML += '</div></details>';
+                             lastMsgContent.innerHTML += DOMPurify.sanitize(toolHTML, {ADD_TAGS: ['details', 'summary']});
+                         }
+                    }
+                } else if (msg.role === 'tool') {
+                     const lastMsgContent = chatMessages.lastElementChild.querySelector('.prose');
+                     if(lastMsgContent) {
+                         const details = document.createElement('details');
+                         details.className = 'mt-2 bg-slate-900 rounded border border-slate-800 text-xs font-mono';
+
+                         const summary = document.createElement('summary');
+                         summary.className = 'p-2 cursor-pointer hover:bg-slate-800 text-slate-400 select-none';
+                         summary.textContent = 'Tool Output: ' + (msg.name || 'Unknown');
+
+                         const toolContent = document.createElement('div');
+                         toolContent.className = 'p-2 border-t border-slate-800 text-slate-400 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap';
+                         toolContent.textContent = msg.content;
+
+                         details.appendChild(summary);
+                         details.appendChild(toolContent);
+                         lastMsgContent.appendChild(details);
+                     }
+                }
+            });
+        } else {
+             chatMessages.innerHTML = `
+                <div class="flex justify-center items-center h-full text-slate-500">
+                    <div class="text-center">
+                        <i data-lucide="bot" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                        <p>Empty Session.</p>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons({ root: chatMessages });
+        }
+
+        loadSessions(); // Update active state in sidebar
+        scrollToBottom();
+    } catch (e) {
+        console.error("Failed to load session history:", e);
+    }
+}
+
+// Hook btnNewChat to refresh sidebar
+const originalNewChat = btnNewChat.onclick;
+btnNewChat.addEventListener('click', () => {
+    loadSessions(); // Will highlight the new session once added
+});
+
+// Load sessions on startup
+loadSessions();
