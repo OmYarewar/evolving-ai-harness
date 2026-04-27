@@ -5,7 +5,23 @@ import os
 import sys
 import urllib.request
 from bs4 import BeautifulSoup
+import psutil
+import zipfile
 from .config import config
+
+def benchmark_performance() -> str:
+    """Benchmarks system performance (CPU, Memory, Disk)."""
+    try:
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory_info = psutil.virtual_memory()
+        disk_info = psutil.disk_usage('/')
+
+        return (f"--- System Performance ---\n"
+                f"CPU Usage: {cpu_percent}%\n"
+                f"Memory Usage: {memory_info.percent}% (Used: {memory_info.used / (1024**3):.2f} GB, Total: {memory_info.total / (1024**3):.2f} GB)\n"
+                f"Disk Usage: {disk_info.percent}% (Used: {disk_info.used / (1024**3):.2f} GB, Total: {disk_info.total / (1024**3):.2f} GB)\n")
+    except Exception as e:
+        return f"Error benchmarking performance: {e}"
 
 def read_file(filepath: str) -> str:
     """Reads the content of a file."""
@@ -53,17 +69,22 @@ def restart_harness() -> str:
 def evaluate_harness(test_command: str) -> str:
     """Runs a harness test command and captures the output/trace for optimization."""
     try:
+        pre_perf = benchmark_performance()
         cmd_to_run = test_command
         # Auto-inject sudo password if required
         if "sudo " in test_command and config.sudo_password:
              cmd_to_run = test_command.replace("sudo ", f"echo '{config.sudo_password}' | sudo -S ") if "sudo " in test_command else test_command
 
         result = subprocess.run(cmd_to_run, shell=True, capture_output=True, text=True, cwd=config.workspace_dir, timeout=60)
-        output = "--- Test Execution Trace ---\n"
+        post_perf = benchmark_performance()
+
+        output = "--- Pre-Execution Performance ---\n" + pre_perf + "\n"
+        output += "--- Test Execution Trace ---\n"
         output += f"Command: {test_command}\n"
         output += f"Exit Code: {result.returncode}\n\n"
         output += f"--- STDOUT ---\n{result.stdout}\n\n"
         output += f"--- STDERR ---\n{result.stderr}\n\n"
+        output += "--- Post-Execution Performance ---\n" + post_perf + "\n"
 
         import re
         score_match = re.search(r"score:\s*([0-9.]+)", result.stdout, re.IGNORECASE)
@@ -73,6 +94,31 @@ def evaluate_harness(test_command: str) -> str:
         return output
     except Exception as e:
         return f"Error executing harness evaluation: {e}"
+
+def heal_system() -> str:
+    """Scans for and terminates runaway processes that might be resource hogs."""
+    try:
+        terminated_processes = []
+        # Find processes taking high CPU
+        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
+            try:
+                # Get cpu percent - this requires a small delay so we pass interval=None,
+                # but we've already imported psutil. It might not be perfectly accurate
+                # on first pass without interval, but good enough for a basic check.
+                if proc.info['cpu_percent'] is not None and proc.info['cpu_percent'] > 90.0:
+                    # Don't kill our own process
+                    if proc.info['pid'] != os.getpid():
+                        proc.terminate()
+                        terminated_processes.append(f"Terminated PID: {proc.info['pid']} (Name: {proc.info['name']}, CPU: {proc.info['cpu_percent']}%)")
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+        if not terminated_processes:
+            return "System heal complete. No runaway processes found."
+        else:
+            return "System heal complete. Terminated the following processes:\n" + "\n".join(terminated_processes)
+    except Exception as e:
+        return f"Error executing system heal: {e}"
 
 def get_recent_ai_papers() -> str:
     """Scrapes recent AI papers from arxiv."""
@@ -100,13 +146,36 @@ def get_recent_ai_papers() -> str:
     except Exception as e:
         return f"Error fetching papers: {e}"
 
+def install_skill(zip_filepath: str) -> str:
+    """Unzips a provided .zip file into a skills/ directory within the workspace."""
+    try:
+        path = zip_filepath
+        if not os.path.isabs(path):
+            path = os.path.join(config.workspace_dir, path)
+
+        skills_dir = os.path.join(config.workspace_dir, "skills")
+        os.makedirs(skills_dir, exist_ok=True)
+
+        if not os.path.exists(path):
+            return f"Error: Skill zip file not found at {path}"
+
+        with zipfile.ZipFile(path, 'r') as zip_ref:
+            zip_ref.extractall(skills_dir)
+
+        return f"Successfully extracted {path} to {skills_dir}."
+    except Exception as e:
+        return f"Error installing skill: {e}"
+
 AVAILABLE_TOOLS = {
     "read_file": read_file,
     "write_file": write_file,
     "execute_terminal_command": execute_terminal_command,
     "restart_harness": restart_harness,
     "evaluate_harness": evaluate_harness,
-    "get_recent_ai_papers": get_recent_ai_papers
+    "get_recent_ai_papers": get_recent_ai_papers,
+    "benchmark_performance": benchmark_performance,
+    "heal_system": heal_system,
+    "install_skill": install_skill
 }
 
 TOOLS_SCHEMA = [
@@ -186,6 +255,42 @@ TOOLS_SCHEMA = [
             "parameters": {
                 "type": "object",
                 "properties": {},
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "benchmark_performance",
+            "description": "Benchmarks system performance, returning current CPU, Memory, and Disk usage.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "heal_system",
+            "description": "Scans for and terminates runaway processes that might be consuming excessive CPU (>90%).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "install_skill",
+            "description": "Unzips a provided .zip file containing a skill into the skills/ directory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "zip_filepath": {"type": "string", "description": "The path to the .zip file to install"}
+                },
+                "required": ["zip_filepath"]
             }
         }
     }

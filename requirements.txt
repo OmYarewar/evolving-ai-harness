@@ -9,3 +9,5 @@ python-dotenv
 sqlmodel
 mcp
 beautifulsoup4
+psutil
+python-multipart

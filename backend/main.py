@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Body, HTTPException
+from fastapi import FastAPI, Request, Body, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -6,6 +6,8 @@ from pydantic import BaseModel
 import os
 import json
 import asyncio
+import zipfile
+import shutil
 
 from .config import config
 from .memory import memory
@@ -108,6 +110,33 @@ class SudoUpdate(BaseModel):
 async def update_sudo(update: SudoUpdate):
     config.sudo_password = update.sudo_password
     return {"status": "ok"}
+
+@app.post("/api/skills/upload")
+async def upload_skill(file: UploadFile = File(...)):
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="File must be a .zip")
+
+    skills_dir = os.path.join(config.workspace_dir, "skills")
+    os.makedirs(skills_dir, exist_ok=True)
+
+    # Sanitize the filename to prevent path traversal
+    safe_filename = os.path.basename(file.filename)
+    zip_path = os.path.join(config.workspace_dir, safe_filename)
+
+    try:
+        with open(zip_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Use our existing tool logic to extract
+        from .tools import install_skill
+        result = install_skill(zip_path)
+
+        # Clean up the zip file
+        os.remove(zip_path)
+
+        return {"status": "ok", "message": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
