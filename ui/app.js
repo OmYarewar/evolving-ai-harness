@@ -186,7 +186,7 @@ function appendMessage(role, content, id = null) {
     }
 
     const wrapper = document.createElement('div');
-    wrapper.className = `flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'} max-w-4xl mx-auto w-full`;
+    wrapper.className = `flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'} max-w-4xl mx-auto w-full animate-fade-in-up`;
     
     const innerId = id ? `id="${id}-content"` : '';
     
@@ -267,7 +267,7 @@ if (btnUploadSkill && fileUploadSkill) {
 
             const data = await res.json();
             if (res.ok) {
-                alert('Skill uploaded successfully!\\n\\n' + data.message);
+                alert('Skill uploaded successfully!\n\n' + data.message);
             } else {
                 alert('Error uploading skill: ' + (data.detail || data.message || 'Unknown error'));
             }
