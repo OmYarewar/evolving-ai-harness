@@ -23,16 +23,43 @@ function scrollToBottom() {
     }
 }
 
-// Settings Elements
+// Settings & File Upload Elements
 const settingsModal = document.getElementById('settings-modal');
 const btnSettings = document.getElementById('btn-settings');
 const btnCloseSettings = document.getElementById('btn-close-settings');
 const btnSaveSettings = document.getElementById('btn-save-settings');
+const btnUploadSkill = document.getElementById('btn-upload-skill');
+const fileUploadSkill = document.getElementById('file-upload-skill');
+const btnThemeToggle = document.getElementById('btn-theme-toggle');
+const iconTheme = document.getElementById('icon-theme');
 
 const inputBaseUrl = document.getElementById('config-base-url');
 const inputApiKey = document.getElementById('config-api-key');
 const inputModel = document.getElementById('config-model');
 const inputSystemPrompt = document.getElementById('config-system-prompt');
+
+// Theme Toggle Logic
+if (btnThemeToggle) {
+    btnThemeToggle.addEventListener('click', () => {
+        const html = document.documentElement;
+        if (html.classList.contains('dark')) {
+            html.classList.remove('dark');
+            iconTheme.setAttribute('data-lucide', 'sun');
+            localStorage.setItem('theme', 'light');
+        } else {
+            html.classList.add('dark');
+            iconTheme.setAttribute('data-lucide', 'moon');
+            localStorage.setItem('theme', 'dark');
+        }
+        lucide.createIcons({ root: btnThemeToggle });
+    });
+
+    // Load saved theme
+    if (localStorage.getItem('theme') === 'light') {
+        document.documentElement.classList.remove('dark');
+        if(iconTheme) iconTheme.setAttribute('data-lucide', 'sun');
+    }
+}
 
 // Auto-resize textarea
 chatInput.addEventListener('input', function() {
@@ -159,7 +186,7 @@ function appendMessage(role, content, id = null) {
     }
 
     const wrapper = document.createElement('div');
-    wrapper.className = `flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'} max-w-4xl mx-auto w-full`;
+    wrapper.className = `flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'} max-w-4xl mx-auto w-full animate-fade-in-up`;
     
     const innerId = id ? `id="${id}-content"` : '';
     
@@ -209,6 +236,49 @@ btnNewChat.addEventListener('click', () => {
     // Optimize performance: Only scan the chatMessages container for icons instead of the whole document
     lucide.createIcons({ root: chatMessages });
 });
+
+// Skill Upload Logic
+if (btnUploadSkill && fileUploadSkill) {
+    btnUploadSkill.addEventListener('click', () => {
+        fileUploadSkill.click();
+    });
+
+    fileUploadSkill.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.name.endsWith('.zip')) {
+            alert('Please select a .zip file.');
+            fileUploadSkill.value = '';
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const originalHTML = btnUploadSkill.innerHTML;
+        btnUploadSkill.innerHTML = '<span class="animate-pulse flex items-center h-4"><span class="w-1.5 h-1.5 bg-slate-300 rounded-full mr-1"></span><span class="w-1.5 h-1.5 bg-slate-300 rounded-full mr-1"></span><span class="w-1.5 h-1.5 bg-slate-300 rounded-full"></span></span>';
+
+        try {
+            const res = await fetch('/api/skills/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                alert('Skill uploaded successfully!\n\n' + data.message);
+            } else {
+                alert('Error uploading skill: ' + (data.detail || data.message || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Upload failed: ' + err.message);
+        } finally {
+            btnUploadSkill.innerHTML = originalHTML;
+            fileUploadSkill.value = ''; // Reset input
+        }
+    });
+}
 
 // Settings Logic
 btnSettings.addEventListener('click', async () => {

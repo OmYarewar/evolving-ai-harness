@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Harness - Evolving UI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -33,10 +33,17 @@
             <i data-lucide="cpu"></i> AI Harness
         </div>
         <div class="flex items-center gap-4">
-            <button id="btn-sudo" class="p-2 bg-red-600/20 hover:bg-red-600/40 rounded-md transition-colors text-red-400 font-semibold text-sm flex gap-2 items-center" title="Sudo Access">
+            <button id="btn-sudo" class="p-2 bg-red-600/20 hover:bg-red-600/40 rounded-md transition-all hover:scale-105 active:scale-95 text-red-400 font-semibold text-sm flex gap-2 items-center" title="Sudo Access">
                 <i data-lucide="shield"></i> Sudo
             </button>
-            <button id="btn-settings" class="p-2 hover:bg-slate-700 rounded-md transition-colors text-slate-400 hover:text-white" title="Settings">
+            <button id="btn-upload-skill" class="p-2 hover:bg-slate-700 rounded-md transition-all hover:scale-105 active:scale-95 text-slate-400 hover:text-white" title="Upload Skill (.zip)">
+                <i data-lucide="upload"></i>
+            </button>
+            <input type="file" id="file-upload-skill" accept=".zip" class="hidden">
+            <button id="btn-theme-toggle" class="p-2 hover:bg-slate-700 rounded-md transition-all hover:scale-105 active:scale-95 text-slate-400 hover:text-white" title="Toggle Theme">
+                <i data-lucide="moon" id="icon-theme"></i>
+            </button>
+            <button id="btn-settings" class="p-2 hover:bg-slate-700 rounded-md transition-all hover:scale-105 active:scale-95 text-slate-400 hover:text-white" title="Settings">
                 <i data-lucide="settings"></i>
             </button>
         </div>
@@ -48,7 +55,7 @@
         <!-- Sidebar: Sessions -->
         <aside class="w-64 bg-dark-panel border-r border-dark-border flex flex-col hidden sm:flex shrink-0">
             <div class="p-3 border-b border-dark-border">
-                <button id="btn-new-chat" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-4 rounded flex items-center justify-center gap-2 transition-colors">
+                <button id="btn-new-chat" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-4 rounded flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95">
                     <i data-lucide="plus" class="w-4 h-4"></i> New Chat
                 </button>
             </div>

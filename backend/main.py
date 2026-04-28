@@ -101,6 +101,9 @@ async def update_config(update: ConfigUpdate):
         # Start reload task in background
         asyncio.create_task(mcp_manager.reload_config(config.mcp_config_str))
 
+    # Persist the configuration changes
+    config.save_config()
+
     return {"status": "ok"}
 
 class SudoUpdate(BaseModel):
